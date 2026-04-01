@@ -1,4 +1,4 @@
-# Data Quality Validation Engine
+# Data Quality Engine
 
 A data quality validation project for structured datasets. Point it at a CSV, get back a detailed report of every issue, row by row, column by column, ranked by severity.
 
