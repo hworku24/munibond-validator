@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name="munibond-validator",
     version="1.0.0",
-    description="Data quality validation tool for municipal bond records",
+    description="Data quality validation engine for structured financial datasets",
     author="Agapi Gessesse",
     packages=find_packages(),
     install_requires=[

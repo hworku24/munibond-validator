@@ -1,155 +1,144 @@
-# MuniBond Validator
+# Data Quality Validation Engine
 
-A data quality validation tool purpose-built for municipal bond records. Upload a CSV or Excel file of bond data and get an instant quality report — flagging format errors, missing fields, logical inconsistencies, and suspicious values.
+A data quality validation engine for structured financial datasets. Point it at a CSV, get back a detailed report of every issue — row by row, column by column, ranked by severity so you know what to fix first.
 
-Built with Python, Pandas, and Rich for beautiful terminal output. Generates HTML and JSON reports for sharing with teams.
+I built this after spending too many hours debugging analytics pipelines that broke because of silent data issues upstream: truncated identifiers, dates that didn't make sense, values that passed format checks but failed basic logic. The kind of stuff that looks fine in a spreadsheet but falls apart the moment you try to do anything with it.
 
----
+The architecture is extensible — each validator is a standalone function that takes a DataFrame and returns a list of typed issues. Adding a new check is just writing a function and dropping it into the registry.
 
-## Why This Exists
+## What it catches
 
-Municipal bond data flows through multiple systems — from issuers to underwriters to data vendors to end users. At every handoff, errors creep in: truncated CUSIPs, flipped dates, negative par values, invalid state codes. This tool catches those issues before they become expensive problems downstream.
+The engine runs 17 checks across three layers:
 
----
+**Structural validation** — missing columns, blank fields, malformed identifiers, unparseable dates, invalid reference codes. The baseline stuff that should never make it past ingestion.
 
-## Features
+**Identifier verification** — goes beyond format checks. Validates check digits using the Luhn algorithm (same math behind credit card validation), flags issuer codes that don't match expected patterns, and catches placeholder identifiers that suggest incomplete data.
 
-| Validation Rule | What It Catches | Severity |
-|---|---|---|
-| **Required Columns** | Missing columns in the dataset | Error |
-| **Missing Values** | Blank or null fields in required columns | Error |
-| **CUSIP Format** | CUSIPs that aren't 9 alphanumeric characters | Error |
-| **Duplicate CUSIPs** | Repeated CUSIP identifiers | Warning |
-| **Date Validity** | Unparseable dates, future issue dates | Error/Warning |
-| **Maturity Logic** | Maturity date on or before issue date | Error |
-| **Numeric Ranges** | Negative par values, impossible coupon rates | Error |
-| **Unusual Values** | Extremely large par values, high coupon rates | Warning |
-| **State Codes** | Invalid US state/territory abbreviations | Error |
-| **Bond Type** | Unrecognized bond classifications | Warning |
-| **Issuer Name Quality** | Suspiciously short or numeric issuer names | Warning |
+**Cross-field logic** — this is where it gets interesting. The engine understands relationships between fields: rates that don't make sense for a given instrument type, terms that exceed typical limits, face values that are orders of magnitude off for their category. It also cross-references geographic data in text fields against coded fields to catch mismatches.
 
----
+**Pattern detection** — catches the human side of data quality: trailing whitespace, inconsistent casing of the same entity name, special characters from bad exports, fully duplicated rows, and suspicious value concentrations that suggest copy-paste errors. These are the issues that automated pipelines miss because each individual value looks valid.
 
-## Quick Start
-
-### Installation
+## Quick start
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/munibond-validator.git
 cd munibond-validator
 pip install -r requirements.txt
+
+# Clean dataset — should pass all 17 validators
+python -m munibond_validator.main sample_data/sample_clean.csv
+
+# Messy dataset — demonstrates every kind of issue
+python -m munibond_validator.main sample_data/sample_messy.csv
 ```
 
-### Run Against Sample Data
+## Output formats
 
 ```bash
-# Clean data — should pass with 0 issues
-python -m munibond_validator.main sample_data/bonds_clean.csv
+# Terminal — Rich-formatted tables with color-coded severity
+python -m munibond_validator.main data.csv
 
-# Messy data — demonstrates all validation rules
-python -m munibond_validator.main sample_data/bonds_messy.csv
+# HTML — interactive dashboard with search, filter, and sort
+python -m munibond_validator.main data.csv --format html
+
+# JSON — structured output for piping into other tools
+python -m munibond_validator.main data.csv --format json
+
+# Excel — styled .xlsx report with summary charts
+python -m munibond_validator.main data.csv --format xlsx
+
+# Everything at once
+python -m munibond_validator.main data.csv --format all
 ```
 
-### Generate Reports
+The HTML report is a dark-themed dashboard with live search, severity filters, sortable columns, and bar charts — designed to be shared with a team or dropped into a wiki.
+
+## Filtering
+
+When you're working with large datasets, you don't want to see every INFO-level whitespace issue:
 
 ```bash
-# HTML report (great for sharing)
-python -m munibond_validator.main sample_data/bonds_messy.csv --format html
+# Only errors
+python -m munibond_validator.main data.csv --severity error
 
-# JSON report (for programmatic use)
-python -m munibond_validator.main sample_data/bonds_messy.csv --format json
+# Only identifier-related rules
+python -m munibond_validator.main data.csv --rule CUSIP
 
-# All formats at once
-python -m munibond_validator.main sample_data/bonds_messy.csv --format all
+# Cap the output
+python -m munibond_validator.main data.csv --limit 20
 ```
 
----
+## Validation rules
 
-## Example Output
+| Rule | What it catches | Severity |
+|---|---|---|
+| `MISSING_COLUMN` | Required column not in dataset | Error |
+| `MISSING_VALUE` | Blank/null in a required field | Error |
+| `CUSIP_FORMAT` | Identifier not 9 alphanumeric characters | Error |
+| `CUSIP_CHECK_DIGIT` | Luhn algorithm check digit mismatch | Error |
+| `CUSIP_ISSUER_ANOMALY` | Issuer code pattern doesn't match expected type | Warning |
+| `CUSIP_PLACEHOLDER` | Identifier segment suggests placeholder data | Info |
+| `DUPLICATE_CUSIP` | Same identifier appears more than once | Warning |
+| `INVALID_DATE` | Date value can't be parsed | Error |
+| `FUTURE_ISSUE_DATE` | Date is in the future | Warning |
+| `MATURITY_BEFORE_ISSUE` | End date on or before start date | Error |
+| `COUPON_TYPE_MISMATCH` | Rate outside expected range for instrument type | Warning |
+| `EXCESSIVE_MATURITY_TERM` | Term exceeds typical max for instrument type | Warning |
+| `EXTREME_MATURITY_TERM` | Term exceeds 50 years (likely data error) | Error |
+| `PAR_TYPE_MISMATCH` | Face value unusual for instrument type | Warning |
+| `ISSUER_STATE_MISMATCH` | Text field suggests different geography than coded field | Warning |
+| `DUPLICATE_ROW` | Entire row is identical to another | Warning |
+| `COPY_PASTE_SUSPECTED` | >60% of a column shares one value | Warning |
+| `TRAILING_WHITESPACE` | Leading/trailing spaces in text fields | Info |
 
-### Terminal (Rich)
+Plus range checks for negative values, unusually large amounts, invalid reference codes, and short/numeric entity names.
 
-```
-╭──────────── MuniBond Data Validation Report ────────────╮
-│ bonds_messy.csv                                         │
-│ Rows: 15  |  Columns: 8  |  Validators: 9              │
-│ Status: FAIL  |  Pass Rate: 40.0%                       │
-╰─────────────────────────────────────────────────────────╯
-  Errors: 12  |  Warnings: 7  |  Info: 0
+## Expected input
 
-  Row  Column          Severity  Rule                    Message
-   3   cusip           ERROR     CUSIP_FORMAT            Invalid CUSIP format: 'INVALID99'...
-   6   issuer_name     ERROR     MISSING_VALUE           Required field 'issuer_name' is empty.
-   7   state           ERROR     INVALID_STATE           'XX' is not a valid state code.
-   ...
-```
+CSV or Excel with these columns (case-insensitive):
 
-### HTML Report
+| Column | Type | Example |
+|---|---|---|
+| `cusip` | 9-char identifier | `912828ZT0` |
+| `issuer_name` | String | `City of Austin Texas` |
+| `state` | 2-letter code | `TX` |
+| `issue_date` | Date | `2023-01-15` |
+| `maturity_date` | Date | `2033-01-15` |
+| `par_value` | Numeric (USD) | `5000000` |
+| `coupon_rate` | Numeric (%) | `4.25` |
+| `bond_type` | Classification | `GO` |
 
-The HTML report features a dark-themed dashboard with summary statistics, color-coded severity badges, and a searchable issues table. Generate one with `--format html` and open it in your browser.
-
----
-
-## Expected Data Format
-
-Your CSV or Excel file should include these columns (case-insensitive):
-
-| Column | Type | Description | Example |
-|---|---|---|---|
-| `cusip` | String | 9-character CUSIP identifier | `912828ZT6` |
-| `issuer_name` | String | Name of the bond issuer | `City of Austin Texas` |
-| `state` | String | 2-letter US state/territory code | `TX` |
-| `issue_date` | Date | Bond issuance date | `2023-01-15` |
-| `maturity_date` | Date | Bond maturity date | `2033-01-15` |
-| `par_value` | Numeric | Face value in USD | `5000000` |
-| `coupon_rate` | Numeric | Annual coupon rate (%) | `4.25` |
-| `bond_type` | String | Bond classification code | `GO` |
-
-### Recognized Bond Types
-
-`GO` (General Obligation), `REV` (Revenue), `BAB` (Build America), `CD` (Certificate of Deposit), `IDR` (Industrial Development Revenue), `TAN` (Tax Anticipation Note), `BAN` (Bond Anticipation Note), `RAN` (Revenue Anticipation Note), `TRAN` (Tax & Revenue Anticipation Note), `COPs` (Certificates of Participation), `HFA` (Housing Finance Authority), `OTHER`
-
----
-
-## Running Tests
+## Tests
 
 ```bash
 pytest tests/ -v
 ```
 
----
+162 unit tests covering all 17 validators, including edge cases for the Luhn algorithm, cross-field logic, and pattern detection.
 
-## Project Structure
+## Project structure
 
 ```
 munibond-validator/
 ├── munibond_validator/
 │   ├── __init__.py
-│   ├── main.py            # CLI entry point
-│   ├── validators.py      # Core validation rules
-│   └── report.py          # Console, HTML, and JSON report generators
+│   ├── main.py            # CLI entry point (argparse)
+│   ├── validators.py      # 17 validation rules + registry
+│   └── report.py          # Terminal, HTML, JSON, Excel generators
 ├── tests/
-│   └── test_validators.py # Unit tests for all validation rules
+│   └── test_validators.py
 ├── sample_data/
-│   ├── bonds_clean.csv    # Sample clean dataset
-│   └── bonds_messy.csv    # Sample dataset with intentional errors
-├── reports/               # Generated reports go here
+│   ├── sample_clean.csv
+│   └── sample_messy.csv
+├── reports/
 ├── requirements.txt
 ├── setup.py
 └── README.md
 ```
 
----
+## Built with
 
-## Tech Stack
-
-- **Python 3.9+**
-- **Pandas** — data loading and manipulation
-- **Rich** — beautiful terminal output
-- **Jinja2** — HTML report templating
-- **Pytest** — test framework
-
----
+Python 3.9+ / Pandas / Rich / Jinja2 / openpyxl / Pytest
 
 ## License
 
