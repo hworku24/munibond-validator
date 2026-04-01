@@ -1,8 +1,8 @@
-# Data Quality Engine
+# Data Quality Checking 
 
 A data quality validation project for structured datasets. Point it at a CSV, get back a detailed report of every issue, row by row, column by column, ranked by severity.
 
-I built this after spending too many hours debugging analytics pipelines that broke because of silent data issues upstream: truncated identifiers, dates that didn't make sense, values that passed format checks but failed basic logic. The kind of stuff that looks fine in a spreadsheet but falls apart in practice.
+I built this after spending too many hours debugging analytics pipelines that broke because of data issues that upstream: truncated identifiers, formatting, downstream and semantic validation. 
 
 The architecture is extensible: each validator is a standalone function that takes a DataFrame and returns a list of typed issues. Adding a new check is just writing a function and dropping it into the registry.
 
