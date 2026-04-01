@@ -25,37 +25,37 @@ git clone https://github.com/YOUR_USERNAME/munibond-validator.git
 cd munibond-validator
 pip install -r requirements.txt
 
-# Clean dataset — should pass all 17 validators
+# Clean dataset, should pass all 17 validators
 python -m munibond_validator.main sample_data/sample_clean.csv
 
-# Messy dataset — demonstrates every kind of issue
+# Messy dataset, demonstrates every kind of issue
 python -m munibond_validator.main sample_data/sample_messy.csv
 ```
 
 ## Output formats
 
 ```bash
-# Terminal — Rich-formatted tables with color-coded severity
+# Terminal: formatted tables with color-coded severity
 python -m munibond_validator.main data.csv
 
-# HTML — interactive dashboard with search, filter, and sort
+# HTML: interactive dashboard with search, filter, and sort
 python -m munibond_validator.main data.csv --format html
 
-# JSON — structured output for piping into other tools
+# JSON: structured output for piping into other tools
 python -m munibond_validator.main data.csv --format json
 
-# Excel — styled .xlsx report with summary charts
+# Excel: styled .xlsx report with summary charts
 python -m munibond_validator.main data.csv --format xlsx
 
 # Everything at once
 python -m munibond_validator.main data.csv --format all
 ```
 
-The HTML report is a dark-themed dashboard with live search, severity filters, sortable columns, and bar charts — designed to be shared with a team or dropped into a wiki.
+The HTML report has live search, severity filters, sortable columns, and bar charts. It is designed to be shared with a team or dropped into a wiki.
 
 ## Filtering
 
-When you're working with large datasets, you don't want to see every INFO-level whitespace issue:
+When working with large datasets, erros can be viewed individually:
 
 ```bash
 # Only errors
